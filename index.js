@@ -20,9 +20,21 @@ app.post('/scrape_ads', async (req, res) => {
   
   try {
     const results = [];
-    
+    const today = new Date();
+
     // Insert từng record trong mảng data
     for (const item of data) {
+      // Tính time_running (số ngày)
+      let time_running = null;
+      if (item.start_date) {
+        const startDate = new Date(item.start_date);
+        const diffMs = today - startDate;
+        const diffDays = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+        time_running = diffDays; // kiểu int
+      }
+      // Gán lại vào item
+      item.time_running = time_running;
+
       const { query, values } = scrape_data(item);
       const result = await pool.query(query, values);
       results.push(result.rowCount);
