@@ -1,49 +1,39 @@
 const express = require('express');
-const pool = require('./database');
+const pool = require('./database'); // Đảm bảo file database.js cấu hình đúng kết nối Postgres
 const cors = require("cors");
-const dayjs = require('dayjs');
-const app = express();  
-app.use(express.json())
+const app = express();
+app.use(express.json());
 
-// app.use(cors({
-//   origin: 'http://localhost:5174',
-// }));
+// Cho phép request từ mọi nguồn gốc, bạn có thể giới hạn lại nếu cần
+app.use(cors());
 
 const port = 5000;
-// const scrape = "Select * from scrape_ads";
-
-// app.get('/tuychon1', async (req, res) => {
-//   try {
-//     const result = await pool.query(scrape);
-//     res.json(result.rows);
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// });
 
 app.post('/scrape_ads', async (req, res) => {
   const { data } = req.body;
   
   if (!data || !Array.isArray(data)) {
-    return res.status(400).json({ error: 'Dữ liệu không hợp lệ hoặc không phải là mảng' });
+    return res.status(400).json({ error: 'Dữ liệu không hợp lệ hoặc không phải là một mảng' });
   }
 
-  console.log('Received data:', data); // Kiểm tra dữ liệu "data"
+  console.log(`Nhận được yêu cầu insert ${data.length} records.`);
   
   try {
     const results = [];
     
-    // Insert từng record trong data array
+    // Insert từng record trong mảng data
     for (const item of data) {
       const { query, values } = scrape_data(item);
       const result = await pool.query(query, values);
       results.push(result.rowCount);
     }
     
+    const totalInserted = results.reduce((sum, count) => sum + count, 0);
+    
     res.json({ 
       success: true, 
-      message: `Đã insert thành công ${results.length} records`,
-      insertedCount: results.reduce((sum, count) => sum + count, 0)
+      message: `Đã xử lý xong ${results.length} records.`,
+      insertedCount: totalInserted
     });
     
   } catch (err) {
@@ -53,16 +43,17 @@ app.post('/scrape_ads', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Server chạy ở http://localhost:${port}`);
+  console.log(`Server đang chạy tại http://localhost:${port}`);
 });
 
+// Hàm này tạo câu lệnh SQL và các giá trị từ một object item
+// Nó đã xử lý tốt các giá trị null
 const scrape_data = (data) => {
-  // Câu lệnh SQL với tham số placeholder
   const query = `
-    INSERT INTO scrape_ads (
+    INSERT INTO ads_scrape (
       brand, 
       status, 
-      start_data, 
+      start_date, 
       time_running, 
       ads_format, 
       ads_platforms, 
@@ -72,14 +63,14 @@ const scrape_data = (data) => {
     ) 
     VALUES (
       $1, $2, $3, $4, $5, $6, $7, $8, $9
-    );
+    )
+    ON CONFLICT DO NOTHING; -- Tùy chọn: Bỏ qua nếu có lỗi trùng lặp (ví dụ: dựa trên một unique constraint)
   `;
   
-  // Tham số sẽ truyền vào
   const values = [
     data.brand || null,
     data.status || null,
-    data.start_data || null,
+    data.start_date || null,
     data.time_running || null,
     data.ads_format || null,
     data.ads_platforms || null,
